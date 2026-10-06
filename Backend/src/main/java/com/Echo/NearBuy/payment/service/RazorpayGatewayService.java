@@ -31,7 +31,7 @@ public class RazorpayGatewayService {
                 .build();
     }
 
-    public GatewayOrder createOrder(Long orderId, BigDecimal amount) {
+    public GatewayOrder createOrder(Long paymentId, BigDecimal amount) {
         requireConfigured();
         long amountInPaise = amount
                 .setScale(2, RoundingMode.UNNECESSARY)
@@ -47,7 +47,7 @@ public class RazorpayGatewayService {
                     .body(Map.of(
                             "amount", amountInPaise,
                             "currency", "INR",
-                            "receipt", "nearbuy-" + orderId))
+                            "receipt", "nearbuy-payment-" + paymentId))
                     .retrieve()
                     .body(GatewayOrder.class);
             if (gatewayOrder == null || gatewayOrder.id() == null || gatewayOrder.id().isBlank()) {

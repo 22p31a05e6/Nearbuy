@@ -22,6 +22,7 @@ import com.Echo.NearBuy.product.entity.ProductUnit;
 import com.Echo.NearBuy.product.repository.ProductRepository;
 import com.Echo.NearBuy.product.repository.ProductUnitRepository;
 import com.Echo.NearBuy.shop.repository.ShopRepository;
+import com.Echo.NearBuy.shop.entity.Shop;
 import com.Echo.NearBuy.user.entity.User;
 import com.Echo.NearBuy.user.repository.UserRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -50,6 +51,7 @@ public class OrderService {
     private final PaymentService paymentService;
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
+    private final PackingService packingService;
 
     public OrderService(
             UserRepository userRepository,
@@ -61,7 +63,8 @@ public class OrderService {
             OrderItemRepository orderItemRepository,
             PaymentService paymentService,
             CartRepository cartRepository,
-            CartItemRepository cartItemRepository) {
+            CartItemRepository cartItemRepository,
+            PackingService packingService) {
         this.userRepository = userRepository;
         this.shopRepository = shopRepository;
         this.productRepository = productRepository;
@@ -72,6 +75,7 @@ public class OrderService {
         this.paymentService = paymentService;
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
+        this.packingService = packingService;
     }
 
     @Transactional
@@ -191,6 +195,124 @@ public class OrderService {
         paymentService.createPendingPayment(savedOrder, request.paymentMethod());
 
         return savedOrder;
+    }
+
+    @Transactional
+    public Order acceptPaidOnlineOrder(Long shopkeeperId, Long orderId) {
+        Order order = findOrderForShopkeeper(orderId, shopkeeperId);
+        requirePaidOnlineOrder(order);
+        requireStatus(order, OrderStatus.PLACED);
+        order.setStatus(OrderStatus.ACCEPTED.name());
+        return orderRepository.save(order);
+    }
+
+    public Order startPacking(Long shopkeeperId, Long orderId) {
+        return packingService.startPacking(shopkeeperId, orderId);
+    }
+
+    public Order markPacked(Long shopkeeperId, Long orderId) {
+        return packingService.markPacked(shopkeeperId, orderId);
+    }
+
+    public Order getOrder(Long userId, Long orderId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found: " + userId));
+        if (!user.isEnabled()) {
+            throw new AccessDeniedException("Disabled users cannot access orders");
+        }
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Order not found: " + orderId));
+        if (user.getRole() == Role.CUSTOMER && order.getCustomerId().equals(userId)) {
+            return order;
+        }
+        if (user.getRole() == Role.SHOPKEEPER && ownsShop(userId, order.getShopId())) {
+            return order;
+        }
+        throw new EntityNotFoundException("Order not found: " + orderId);
+    }
+
+    public List<Order> getMyOrders(Long customerId) {
+        requireCustomer(customerId);
+        return orderRepository.findByCustomerIdOrderByCreatedAtDesc(customerId);
+    }
+
+    public List<Order> getShopOrders(Long shopkeeperId) {
+        requireShopkeeper(shopkeeperId);
+        List<Long> shopIds = shopRepository.findByOwnerId(shopkeeperId).stream()
+                .map(Shop::getId)
+                .toList();
+        if (shopIds.isEmpty()) {
+            return List.of();
+        }
+        return orderRepository.findByShopIdInOrderByCreatedAtDesc(shopIds);
+    }
+
+    @Transactional
+    public Order rejectOrder(Long shopkeeperId, Long orderId) {
+        Order order = findOrderForShopkeeper(orderId, shopkeeperId);
+        requireStatus(order, OrderStatus.PLACED);
+        if (PaymentStatus.SUCCESS.name().equals(order.getPaymentStatus())) {
+            throw new IllegalStateException(
+                    "Paid orders cannot be rejected until refunds are supported");
+        }
+        if (paymentService.hasActiveRazorpayOrder(orderId)) {
+            throw new IllegalStateException(
+                    "Order cannot be rejected after Razorpay checkout has been initiated");
+        }
+        List<OrderItem> items = orderItemRepository.findByOrderId(orderId);
+        for (OrderItem item : items) {
+            Inventory inventory = inventoryRepository
+                    .findByShopIdAndProductUnitIdForUpdate(order.getShopId(), item.getProductUnitId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Inventory not found for product unit: " + item.getProductUnitId()));
+            if (inventory.getReservedQuantity() < item.getQuantity()) {
+                throw new IllegalStateException(
+                        "Reserved inventory is insufficient for product unit: " + item.getProductUnitId());
+            }
+            inventory.setReservedQuantity(inventory.getReservedQuantity() - item.getQuantity());
+            inventory.setAvailableQuantity(inventory.getAvailableQuantity() + item.getQuantity());
+            inventoryRepository.save(inventory);
+        }
+        order.setStatus(OrderStatus.REJECTED.name());
+        return orderRepository.save(order);
+    }
+
+    private Order findOrderForShopkeeper(Long orderId, Long shopkeeperId) {
+        requireShopkeeper(shopkeeperId);
+        Order order = orderRepository.findByIdForUpdate(orderId)
+                .orElseThrow(() -> new EntityNotFoundException("Order not found: " + orderId));
+        if (!ownsShop(shopkeeperId, order.getShopId())) {
+            throw new EntityNotFoundException("Order not found: " + orderId);
+        }
+        return order;
+    }
+
+    private boolean ownsShop(Long shopkeeperId, Long shopId) {
+        return shopRepository.findById(shopId)
+                .map(shop -> shop.getOwnerId().equals(shopkeeperId))
+                .orElse(false);
+    }
+
+    private void requireShopkeeper(Long shopkeeperId) {
+        User shopkeeper = userRepository.findById(shopkeeperId)
+                .orElseThrow(() -> new EntityNotFoundException("Shopkeeper not found: " + shopkeeperId));
+        if (!shopkeeper.isEnabled() || shopkeeper.getRole() != Role.SHOPKEEPER) {
+            throw new AccessDeniedException("Only an enabled shopkeeper can access shop orders");
+        }
+    }
+
+    private void requirePaidOnlineOrder(Order order) {
+        if (!PaymentMethod.ONLINE.name().equals(order.getPaymentMethod())
+                || !PaymentStatus.SUCCESS.name().equals(order.getPaymentStatus())) {
+            throw new IllegalStateException("Only successfully paid online orders can enter packing");
+        }
+    }
+
+    void requireStatus(Order order, OrderStatus expectedStatus) {
+        if (!expectedStatus.name().equals(order.getStatus())) {
+            throw new IllegalStateException(
+                    "Order must be " + expectedStatus + " before it can advance");
+        }
     }
 
     private void requireCustomer(Long customerId) {

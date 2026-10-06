@@ -1,6 +1,7 @@
 package com.Echo.NearBuy.payment.entity;
 
 import com.Echo.NearBuy.common.enums.PaymentMethod;
+import com.Echo.NearBuy.common.enums.PaymentPurpose;
 import com.Echo.NearBuy.common.enums.PaymentStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -28,7 +29,7 @@ public class Payment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "order_id", nullable = false, unique = true)
+    @Column(name = "order_id", nullable = false)
     private Long orderId;
 
     @Column(nullable = false, precision = 12, scale = 2)
@@ -41,6 +42,10 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     @Column(name = "method", nullable = false, length = 30)
     private PaymentMethod paymentMethod;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "purpose", length = 40)
+    private PaymentPurpose purpose = PaymentPurpose.ORDER;
 
     @Column(name = "transaction_id", length = 255)
     private String transactionId;

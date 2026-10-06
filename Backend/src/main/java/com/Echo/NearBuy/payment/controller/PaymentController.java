@@ -40,6 +40,25 @@ public class PaymentController {
         return paymentService.createRazorpayOrder(authenticatedUser.getId(), orderId);
     }
 
+    @PostMapping("/orders/{orderId}/payments/{paymentId}/razorpay/order")
+    public RazorpayCheckoutResponse createDeliveryFeeRazorpayOrder(
+            @PathVariable Long orderId,
+            @PathVariable Long paymentId,
+            @AuthenticationPrincipal User authenticatedUser) {
+        return paymentService.createDeliveryFeeAdjustmentCheckout(
+                authenticatedUser.getId(), orderId, paymentId);
+    }
+
+    @PostMapping("/orders/{orderId}/payments/{paymentId}/razorpay/verify")
+    public PaymentResponse verifyDeliveryFeeRazorpayPayment(
+            @PathVariable Long orderId,
+            @PathVariable Long paymentId,
+            @AuthenticationPrincipal User authenticatedUser,
+            @Valid @RequestBody VerifyRazorpayPaymentRequest request) {
+        return PaymentResponse.from(paymentService.verifyDeliveryFeeAdjustmentPayment(
+                authenticatedUser.getId(), orderId, paymentId, request));
+    }
+
     @PostMapping("/orders/{orderId}/razorpay/verify")
     public PaymentResponse verifyRazorpayPayment(
             @PathVariable Long orderId,
