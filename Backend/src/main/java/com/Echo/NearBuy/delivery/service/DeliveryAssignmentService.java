@@ -12,6 +12,7 @@ import com.Echo.NearBuy.delivery.enums.VerificationStatus;
 import com.Echo.NearBuy.delivery.repository.DeliveryAssignmentRepository;
 import com.Echo.NearBuy.delivery.repository.DeliveryPersonRepository;
 import com.Echo.NearBuy.location.service.LocationService;
+import com.Echo.NearBuy.notification.service.NotificationService;
 import com.Echo.NearBuy.order.entity.Order;
 import com.Echo.NearBuy.order.repository.OrderRepository;
 import com.Echo.NearBuy.shop.entity.Shop;
@@ -36,6 +37,7 @@ public class DeliveryAssignmentService {
     private final ShopRepository shopRepository;
     private final UserRepository userRepository;
     private final LocationService locationService;
+    private final NotificationService notificationService;
 
     public DeliveryAssignmentService(
             DeliveryPersonRepository deliveryPersonRepository,
@@ -43,13 +45,15 @@ public class DeliveryAssignmentService {
             OrderRepository orderRepository,
             ShopRepository shopRepository,
             UserRepository userRepository,
-            LocationService locationService) {
+            LocationService locationService,
+            NotificationService notificationService) {
         this.deliveryPersonRepository = deliveryPersonRepository;
         this.assignmentRepository = assignmentRepository;
         this.orderRepository = orderRepository;
         this.shopRepository = shopRepository;
         this.userRepository = userRepository;
         this.locationService = locationService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -117,7 +121,20 @@ public class DeliveryAssignmentService {
         person.setAvailable(false);
         orderRepository.save(order);
         deliveryPersonRepository.save(person);
-        return assignmentRepository.save(assignment);
+        DeliveryAssignment savedAssignment = assignmentRepository.save(assignment);
+        Shop shop = shopRepository.findById(order.getShopId())
+                .orElseThrow(() -> new EntityNotFoundException("Shop not found: " + order.getShopId()));
+        notificationService.notifyShopkeeper(
+                shop.getOwnerId(),
+                "Delivery person assigned",
+                "A delivery person accepted order #" + order.getId() + ".",
+                "DELIVERY_ASSIGNED");
+        notificationService.notifyCustomer(
+                order.getCustomerId(),
+                "Delivery person assigned",
+                "A delivery person is assigned to order #" + order.getId() + ".",
+                "DELIVERY_ASSIGNED");
+        return savedAssignment;
     }
 
     @Transactional
@@ -160,6 +177,11 @@ public class DeliveryAssignmentService {
         assignment.setPickedUpAt(LocalDateTime.now());
         order.setStatus(OrderStatus.OUT_FOR_DELIVERY.name());
         orderRepository.save(order);
+        notificationService.notifyCustomer(
+                order.getCustomerId(),
+                "Order picked up",
+                "Your order #" + order.getId() + " has been picked up and is on its way.",
+                "ORDER_PICKED_UP");
         return assignmentRepository.save(assignment);
     }
 
@@ -179,6 +201,11 @@ public class DeliveryAssignmentService {
         person.setAvailable(true);
         orderRepository.save(order);
         deliveryPersonRepository.save(person);
+        notificationService.notifyCustomer(
+                order.getCustomerId(),
+                "Order delivered",
+                "Your order #" + order.getId() + " has been delivered.",
+                "ORDER_DELIVERED");
         return assignmentRepository.save(assignment);
     }
 

@@ -28,6 +28,7 @@ public class SecurityConfig {
                                 "/api/auth/verify-email",
                                 "/api/auth/login",
                                 "/api/auth/refresh").permitAll()
+                        .requestMatchers("/api/shops/nearby").hasRole("CUSTOMER")
                         .requestMatchers("/api/shops/**").hasRole("SHOPKEEPER")
                         .anyRequest().authenticated())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

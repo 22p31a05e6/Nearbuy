@@ -25,7 +25,7 @@ public interface ShopRepository extends JpaRepository<Shop, Long> {
                     * POWER(SIN(RADIANS(s.longitude - :longitude) / 2), 2)
             ))
             """, nativeQuery = true)
-    List<Shop> findByLocation(
+    List<Shop> findNearbyShops(
             @Param("latitude") double latitude,
             @Param("longitude") double longitude,
             @Param("radiusKm") double radiusKm);

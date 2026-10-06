@@ -1,4 +1,4 @@
-package com.Echo.NearBuy.cart.entity;
+package com.Echo.NearBuy.notification.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -6,35 +6,38 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
-@Table(name = "carts", uniqueConstraints = @UniqueConstraint(columnNames = "customer_id"))
+@Table(name = "notifications")
 @Getter
 @Setter
 @NoArgsConstructor
-public class Cart {
+public class Notification {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "customer_id", nullable = false)
-    private Long customerId;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
-    @Column(name = "shop_id")
-    private Long shopId;
+    @Column(nullable = false, length = 160)
+    private String title;
+
+    @Column(nullable = false, length = 2000)
+    private String message;
+
+    @Column(nullable = false, length = 50)
+    private String type;
+
+    @Column(name = "is_read", nullable = false)
+    private boolean isRead = false;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 }

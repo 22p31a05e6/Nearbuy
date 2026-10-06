@@ -1,4 +1,4 @@
-package com.Echo.NearBuy.cart.entity;
+package com.Echo.NearBuy.review.entity;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -7,19 +7,22 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.time.LocalDateTime;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 @Entity
-@Table(name = "carts", uniqueConstraints = @UniqueConstraint(columnNames = "customer_id"))
+@Table(
+        name = "reviews",
+        uniqueConstraints = @UniqueConstraint(columnNames = {"customer_id", "order_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
-public class Cart {
+public class Review {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -27,14 +30,21 @@ public class Cart {
     @Column(name = "customer_id", nullable = false)
     private Long customerId;
 
-    @Column(name = "shop_id")
+    @Column(name = "shop_id", nullable = false)
     private Long shopId;
+
+    @Column(name = "order_id", nullable = false)
+    private Long orderId;
+
+    @Min(1)
+    @Max(5)
+    @Column(nullable = false)
+    private Integer rating;
+
+    @Column(length = 2000)
+    private String comment;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
-
-    @UpdateTimestamp
-    @Column(name = "updated_at", nullable = false)
-    private LocalDateTime updatedAt;
 }

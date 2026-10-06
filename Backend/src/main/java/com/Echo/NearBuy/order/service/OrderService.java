@@ -16,6 +16,7 @@ import com.Echo.NearBuy.order.entity.Order;
 import com.Echo.NearBuy.order.entity.OrderItem;
 import com.Echo.NearBuy.order.repository.OrderItemRepository;
 import com.Echo.NearBuy.order.repository.OrderRepository;
+import com.Echo.NearBuy.notification.service.NotificationService;
 import com.Echo.NearBuy.payment.service.PaymentService;
 import com.Echo.NearBuy.product.entity.Product;
 import com.Echo.NearBuy.product.entity.ProductUnit;
@@ -52,6 +53,7 @@ public class OrderService {
     private final CartRepository cartRepository;
     private final CartItemRepository cartItemRepository;
     private final PackingService packingService;
+    private final NotificationService notificationService;
 
     public OrderService(
             UserRepository userRepository,
@@ -64,7 +66,8 @@ public class OrderService {
             PaymentService paymentService,
             CartRepository cartRepository,
             CartItemRepository cartItemRepository,
-            PackingService packingService) {
+            PackingService packingService,
+            NotificationService notificationService) {
         this.userRepository = userRepository;
         this.shopRepository = shopRepository;
         this.productRepository = productRepository;
@@ -76,6 +79,7 @@ public class OrderService {
         this.cartRepository = cartRepository;
         this.cartItemRepository = cartItemRepository;
         this.packingService = packingService;
+        this.notificationService = notificationService;
     }
 
     @Transactional
@@ -110,6 +114,8 @@ public class OrderService {
                 request.paymentMethod());
         Order order = createOrder(customerId, orderRequest);
         cartItemRepository.deleteAll(cartItems);
+        cart.setShopId(null);
+        cartRepository.save(cart);
         return order;
     }
 
@@ -123,9 +129,9 @@ public class OrderService {
             throw new IllegalArgumentException("Supported payment methods are CASH_ON_DELIVERY and ONLINE");
         }
         requireCustomer(customerId);
-        if (!shopRepository.existsById(request.shopId())) {
-            throw new EntityNotFoundException("Shop not found: " + request.shopId());
-        }
+        Shop shop = shopRepository.findById(request.shopId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Shop not found: " + request.shopId()));
 
         BigDecimal deliveryFee = request.deliveryFee().setScale(2, RoundingMode.HALF_UP);
         Map<Long, Integer> quantitiesByUnit = new LinkedHashMap<>();
@@ -193,6 +199,11 @@ public class OrderService {
         orderItemRepository.saveAll(orderItems);
 
         paymentService.createPendingPayment(savedOrder, request.paymentMethod());
+        notificationService.notifyShopkeeper(
+                shop.getOwnerId(),
+                "New order received",
+                "Order #" + savedOrder.getId() + " has been placed at your shop.",
+                "ORDER_PLACED");
 
         return savedOrder;
     }
@@ -203,7 +214,13 @@ public class OrderService {
         requirePaidOnlineOrder(order);
         requireStatus(order, OrderStatus.PLACED);
         order.setStatus(OrderStatus.ACCEPTED.name());
-        return orderRepository.save(order);
+        Order acceptedOrder = orderRepository.save(order);
+        notificationService.notifyCustomer(
+                acceptedOrder.getCustomerId(),
+                "Order accepted",
+                "Shop accepted your order #" + acceptedOrder.getId() + ".",
+                "ORDER_ACCEPTED");
+        return acceptedOrder;
     }
 
     public Order startPacking(Long shopkeeperId, Long orderId) {

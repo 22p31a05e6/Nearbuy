@@ -2,11 +2,13 @@ package com.Echo.NearBuy.shop.controller;
 
 import com.Echo.NearBuy.shop.dto.CreateShopRequest;
 import com.Echo.NearBuy.shop.entity.Shop;
+import com.Echo.NearBuy.shop.service.ShopSearchService;
 import com.Echo.NearBuy.shop.service.ShopService;
 import com.Echo.NearBuy.user.entity.User;
 import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -17,15 +19,18 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/shops")
 public class ShopController {
     private final ShopService shopService;
+    private final ShopSearchService shopSearchService;
 
-    public ShopController(ShopService shopService) {
+    public ShopController(ShopService shopService, ShopSearchService shopSearchService) {
         this.shopService = shopService;
+        this.shopSearchService = shopSearchService;
     }
 
     @PostMapping
@@ -34,6 +39,16 @@ public class ShopController {
             @Valid @RequestBody CreateShopRequest request) {
         Shop shop = shopService.createShop(authenticatedUser.getId(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ShopResponse.from(shop));
+    }
+
+    @GetMapping("/nearby")
+    public List<ShopSearchService.NearbyShop> findNearbyShops(
+            @AuthenticationPrincipal User authenticatedUser,
+            @RequestParam BigDecimal latitude,
+            @RequestParam BigDecimal longitude,
+            @RequestParam BigDecimal radiusKm) {
+        return shopSearchService.findNearbyShops(
+                authenticatedUser.getId(), latitude, longitude, radiusKm);
     }
 
     @GetMapping("/{id}")

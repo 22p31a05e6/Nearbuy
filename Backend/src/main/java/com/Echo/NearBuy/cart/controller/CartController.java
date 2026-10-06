@@ -43,7 +43,7 @@ public class CartController {
         List<CartItemResponse> items = cartService.getItems(authenticatedUser.getId()).stream()
                 .map(CartItemResponse::from)
                 .toList();
-        return new CartResponse(cart.getId(), cart.getCustomerId(), items);
+        return new CartResponse(cart.getId(), cart.getCustomerId(), cart.getShopId(), items);
     }
 
     @DeleteMapping("/items/{itemId}")
@@ -54,7 +54,7 @@ public class CartController {
         return ResponseEntity.noContent().build();
     }
 
-    public record CartResponse(Long id, Long customerId, List<CartItemResponse> items) {}
+    public record CartResponse(Long id, Long customerId, Long shopId, List<CartItemResponse> items) {}
 
     public record CartItemResponse(
             Long id,

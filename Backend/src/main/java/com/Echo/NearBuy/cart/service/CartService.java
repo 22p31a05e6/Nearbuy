@@ -56,8 +56,12 @@ public class CartService {
         Cart cart = cartRepository.findByCustomerId(customerId).orElseGet(() -> {
             Cart newCart = new Cart();
             newCart.setCustomerId(customerId);
+            newCart.setShopId(product.getShopId());
             return cartRepository.save(newCart);
         });
+        if (cart.getShopId() != null && !cart.getShopId().equals(product.getShopId())) {
+            throw new IllegalArgumentException("Your cart belongs to another shop; clear it before switching shops");
+        }
         List<CartItem> existingItems = cartItemRepository.findByCartId(cart.getId());
         for (CartItem existingItem : existingItems) {
             ProductUnit existingUnit = productUnitRepository.findById(existingItem.getProductUnitId())
@@ -69,6 +73,13 @@ public class CartService {
             if (!existingProduct.getShopId().equals(product.getShopId())) {
                 throw new IllegalArgumentException("A cart can contain items from only one shop");
             }
+            if (cart.getShopId() == null) {
+                cart.setShopId(existingProduct.getShopId());
+            }
+        }
+        if (cart.getShopId() == null) {
+            cart.setShopId(product.getShopId());
+            cartRepository.save(cart);
         }
 
         CartItem cartItem = cartItemRepository
@@ -103,6 +114,10 @@ public class CartService {
             throw new EntityNotFoundException("Cart item not found: " + cartItemId);
         }
         cartItemRepository.delete(cartItem);
+        if (cartItemRepository.findByCartId(cart.getId()).isEmpty()) {
+            cart.setShopId(null);
+            cartRepository.save(cart);
+        }
     }
 
     private void requireCustomer(Long customerId) {
