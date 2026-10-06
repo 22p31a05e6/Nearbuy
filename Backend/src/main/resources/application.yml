@@ -29,6 +29,9 @@ spring:
 app:
   mail:
     from: ${SMTP_FROM:projectnearbuy@gmail.com}
+  razorpay:
+    key-id: ${RAZORPAY_KEY_ID:}
+    key-secret: ${RAZORPAY_KEY_SECRET:}
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
